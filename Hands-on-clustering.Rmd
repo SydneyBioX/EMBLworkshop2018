@@ -1,0 +1,96 @@
+---
+title: "EMBL PhD Course: clustering"
+author: "Kitty Lo"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+    fig_height: 6
+    fig_width: 6
+    toc_depth: 3
+    number_sections: false
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: false
+---
+
+
+In this workshop, we will be exploring a tissue expression dataset with the hierarchical clustering and k-means clustering algorithms, and visualise the dataset using heatmaps and dimension reduction tools. The material is adapted from here http://genomicsclass.github.io/book/pages/clustering_and_heatmaps.html 
+
+## Task 1 
+(a) Download the tissuesGeneExpression dataset from Github: 
+https://github.com/genomicsclass/tissuesGeneExpression/commits/master/data
+Load the dataset into R. Check that there is a 22215 by 189 matrix called `e` with rows as genes and columns as samples. Each sample is from different tissue and the true tissue label can be found in the variable `tissue`. Check that there are 7 tissue types. 
+```{r}
+load("tissuesGeneExpression.rda")
+dim(e)
+unique(tissue)
+```
+
+(b) Build a dendrogram using the R functions `dist` and `hclust`.  
+
+```{r}
+d <- dist(t(e))
+hc <- hclust(d) 
+plot(hc, labels=tissue, cex=0.4)
+```
+
+c) Using the result from `hclust`, extract the clusters from the tree using the `cutree` function. `cutree` allows you to either specify the number of clusters or specify the cut height. Try out different number of desired clusters and compare to the true tissue classes. 
+How well does the hierarchical clustering algorithm perform at finding the tissue classes? Are there tissues that are more difficult to separate? 
+
+```{r}
+hclusters <- cutree(hc,k=7)
+table(true = tissue, cluster = hclusters )
+```
+(d) Heatmaps are ubiquitous in biology, and they can usually be found to accompany dendrograms in publication figures. In this task, use the function `heatmap.2` from the `gplots` library. First, identify the top 50 genes with the highest variance in the expression dataset (You may find the function `apply` useful here). Then, using these 50 genes, build a heatmap using `heatmap.2` function. This function automatically adds dendrogram to the left and to the top of the heatmap.  
+
+```{r}
+library(gplots)
+library(RColorBrewer) 
+rv <- apply(e, 1, var)
+idx <- order(-rv)[1:50]
+cols <- palette(brewer.pal(8, "Dark2"))[as.factor(tissue)]
+hmcol <- colorRampPalette(brewer.pal(9, "GnBu"))(100)
+heatmap.2(e[idx,], labCol=tissue,
+           trace="none", 
+           ColSideColors=cols, 
+           col=hmcol)
+```
+(e) Now let's try the k-means algorithm using the function `kmeans`. 
+
+```{r}
+set.seed(1)
+km <- kmeans(t(e), centers=7)
+names(km)
+table(true=tissue,cluster=km$cluster)
+```
+
+## Task 2
+In this task we will explore the dimension reduction techniques PCA and tSNE.  
+
+(a) Use the R function `prcomp` to perform PCA on the tissue expression dataset and plot the first two PCA components. How many components is required to explain most of the variance in this datasets? 
+
+```{r}
+pca.res <- prcomp(t(e))
+plot(pca.res$x[,1], pca.res$x[,2], col = as.factor(tissue), xlab = "PCA1", ylab = "PCA2") 
+plot(pca.res$sdev) 
+```
+
+(b) Download and install the `Rtsne` package if you haven't already done so. Now perform tSNE on the tissue expression dataset using the `Rtsne` function. Visualise the results and overlay with the clusters found in Task 1. One of the key parameters in the tSNE algorithm is `perplexity`. Explore how changing the perplexity parameter changes the outputs. 
+
+```{r}
+library(Rtsne)
+e.nodups <- e[,!duplicated(t(e))]
+e.tsne <- Rtsne(t(e.nodups))
+plot(e.tsne$Y[,1], e.tsne$Y[,2],col = as.factor(tissue), xlab = "tSNE1", ylab = "tSNE2")
+```
+
+### output session information
+```{r, echo=FALSE}
+sessionInfo()
+```
+
+

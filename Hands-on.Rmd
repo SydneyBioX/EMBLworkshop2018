@@ -1,0 +1,92 @@
+---
+title: "EMBL PhD Course: hands-on session"
+author: "Pengyi Yang"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+    fig_height: 6
+    fig_width: 6
+    toc_depth: 3
+    number_sections: false
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: false
+---
+
+### Task 1
+(a) Install the “mlbench” package (if you haven’t so), load the package library and load the data Ionosphere by typing `data(Ionosphere)`. Extract the class label information which is stored in the last column. Then, exclude the class label from the data and the first and the second columns which correspond to coding columns from the data. Next, classify Ionosphere data using a knn (k-nearest neighbor) classifier with k set to 3.
+
+```{r}
+library(mlbench)
+data(Ionosphere)
+library(class)
+iono.cls <- Ionosphere$Class
+iono.dat <- Ionosphere[,-c(1,2, ncol(Ionosphere))]
+knn.model <- knn(train=iono.dat, test=iono.dat, cl=iono.cls, k=3)
+```
+
+(b)	Extract classification output on training dataset from knn and calculate true positive (TP), true negative (TN), false positive (FP) and false negative (FN) classifications on the training dataset, respectively. Calculate overall classification accuracy on training dataset.
+
+```{r}
+TP <- sum((knn.model == iono.cls)[iono.cls == "good"])
+TN <- sum((knn.model == iono.cls)[iono.cls == "bad"])
+FP <- sum((knn.model != iono.cls)[knn.model == "good"])
+FN <- sum((knn.model != iono.cls)[knn.model == "bad"])
+print(paste("TP: ", TP, "TN: ", TN, "FP: ", FP, "FN: ", FN))
+sum(knn.model == iono.cls) / nrow(iono.dat)
+```
+
+### Task 2
+Set the seed using `set.seed(1)` and implement a 5-fold cross-validation (CV) to calculate average classification accuracy on each of the 5 folds using knn with k=3. Comment on your 5-fold CV classification accuracy and classification accuracy from training dataset from Task 1. Which one is a more accurate estimation of true classification accuracy on unseen dataset? Why is it so?
+
+```{r warning=FALSE}
+library(caret)
+set.seed(1)
+fold <- createFolds(iono.cls, k=5)
+
+CV.accuracy <- c()
+for(i in 1:length(fold)){
+  knn.model <- knn(train=iono.dat[-fold[[i]],], test=iono.dat[fold[[i]],], cl=iono.cls[-fold[[i]]], k=3)
+  CV.accuracy <- c(CV.accuracy, sum(knn.model == iono.cls[fold[[i]]]) / length(iono.cls[fold[[i]]]))
+}
+mean(CV.accuracy)
+```
+
+<!-- 5-fold CV classification accuracy is a more accurate estimate of true classification accuracy on unseen dataset than training accuracy on the entire dataset. This is because 5-fold CV avoid to test classifier performance on data used for model training and therefore avoid potential overfitting which gives over-optimistic estimation of model performance.-->
+
+### Task 3
+In this task, we will use the AdaSampling CRAN package for kinase-substrate prediction. First, download the insulin dataset from: https://github.com/PengyiYang/AdaSampling/blob/master/data/Insulin.RData. This dataset contains the phosphoproteomics profile of 3T3-L1 adipocytes under insulin stimulation. The RData has an object `phospho.mat` which contains time course profile and an inhibitor profile. There are two other objects in the RData. They are `Akt.Ps` and `Akt.Us` which contain the known Akt substrates and and the unannotated subtrates with respect to Akt, respectively. First, install the package by typing `install.packages("AdaSampling")`. After installing the AdaSampling package, please conduct the following experiment.
+
+(a) Create a knn (k=3) classification model to classify Akt substrates without using positive unlabeled learning. What is the sensitivity of the classification?
+
+```{r}
+load("Insulin.RData")
+
+# knn classification without positive unlabeled learning
+cls <- ifelse(rownames(phospho.mat) %in% Akt.Ps, "P", "N")
+Akt.pred1 <- knn(train=phospho.mat, test=phospho.mat, cl=cls, k=3)
+Akt.sen1 <- sum((Akt.pred1 == cls)[cls == "P"]) / sum(cls == "P")
+print(paste("knn classification without positive unlabeled learning: ", Akt.sen1, sep=""))
+```
+
+(b) Use AdaSampling with knn to classify Akt substrates. Is there any improvement on classification sensitivity?
+
+```{r}
+# classification using AdaSampling
+library(AdaSampling)
+Akt.probs <- adaSample(Akt.Ps, Akt.Us, train.mat=phospho.mat, test.mat=phospho.mat, classifier = "knn")
+Akt.pred2 <- ifelse(Akt.probs[,"P"] > 0.5, "P", "N")
+Akt.sen2 <- sum((Akt.pred2 == cls)[cls == "P"]) / sum(cls == "P")
+print(paste("knn classification AdaSampling: ", Akt.sen2, sep=""))
+```
+
+### output session information
+```{r, echo=FALSE}
+sessionInfo()
+```
+
+
